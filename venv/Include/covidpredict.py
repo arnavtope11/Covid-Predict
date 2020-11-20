@@ -4,7 +4,7 @@ import pandas as pd
 from pandas import DataFrame
 import math, datetime
 import numpy as np
-from sklearn import preprocessing, model_selection, svm
+from sklearn import preprocessing, model_selection,  svm
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 from matplotlib import style
@@ -15,14 +15,15 @@ response=requests.get("https://api.covid19india.org/data.json")
 j=response.json()
 
 df=pd.DataFrame(j["cases_time_series"])
-df.set_index("date", inplace=True)
 df=df[["totalconfirmed","totaldeceased"]]
-print(df.tail())
+df['date'] = pd.date_range(start='30/1/2020', periods=len(df), freq='D')
+df.set_index("date", inplace=True)
+print(df)
 
 forecast_col="totalconfirmed"
 #forecast_col1="totaldeceased"
 df.fillna(-99999, inplace=True)
-forecast_out=int(math.ceil(0.19*len(df)))
+forecast_out=int(math.ceil(0.021*len(df)))
 
 df['label']=df[forecast_col].shift(-forecast_out)
 #df['label1']=df[forecast_col1].shift(-forecast_out)
@@ -46,5 +47,24 @@ clf= LinearRegression(n_jobs=-1)
 clf.fit(X_train, y_train)
 accuracy=clf.score(X_test, y_test)
 forecast_set=clf.predict(X_lately)
+
 print(forecast_set, accuracy, forecast_out)
-#df.['Forecast']=np.nan
+df['Forecast']=np.nan
+
+last_date = df.iloc[-1].name
+last_unix = last_date.timestamp()
+one_day = 86400
+next_unix = last_unix + one_day
+
+for i in forecast_set:
+    next_date = datetime.datetime.fromtimestamp(next_unix)
+    next_unix += 86400
+    df.loc[next_date] = [np.nan for _ in range(len(df.columns)-1)]+[i]
+
+df=df.astype(float)
+df['totalconfirmed'].plot()
+df['Forecast'].plot()
+plt.legend(loc=4)
+plt.xlabel('Date')
+plt.ylabel('No. of Cases')
+plt.show()
